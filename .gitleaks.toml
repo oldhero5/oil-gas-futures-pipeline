@@ -1,0 +1,75 @@
+# Gitleaks configuration for oil-gas-futures-pipeline
+
+[extend]
+# Use the default gitleaks config as a baseline
+useDefault = true
+
+[[rules]]
+description = "Alpha Vantage API Key"
+id = "alpha-vantage-api-key"
+regex = '''(?i)(alpha[_\-\s]?vantage[_\-\s]?api[_\-\s]?key|av[_\-\s]?key)['"]?\s*[:=]\s*['"]?([a-zA-Z0-9]{16,})'''
+secretGroup = 2
+
+[[rules]]
+description = "Yahoo Finance API Key"
+id = "yahoo-finance-api-key"
+regex = '''(?i)(yahoo[_\-\s]?finance[_\-\s]?api[_\-\s]?key|yf[_\-\s]?key)['"]?\s*[:=]\s*['"]?([a-zA-Z0-9]{16,})'''
+secretGroup = 2
+
+[[rules]]
+description = "Generic API Key"
+id = "generic-api-key"
+regex = '''(?i)(api[_\-\s]?key|apikey|api[_\-\s]?token|access[_\-\s]?key)['"]?\s*[:=]\s*['"]?([a-zA-Z0-9]{20,})'''
+secretGroup = 2
+
+[[rules]]
+description = "Private Key Files"
+id = "private-key-files"
+path = '''(?i)\.(pem|key|p12|pfx|cert|crt|cer)$'''
+
+[[rules]]
+description = "Environment Files"
+id = "env-files"
+path = '''(?i)\.env$|\.env\.[^e].*|\.env\.e[^x].*|\.env\.ex[^a].*|\.env\.exa[^m].*|\.env\.exam[^p].*|\.env\.examp[^l].*|\.env\.exampl[^e].*'''
+
+[[rules]]
+description = "AWS Credentials"
+id = "aws-credentials"
+regex = '''(?i)(aws[_\-\s]?access[_\-\s]?key[_\-\s]?id|aws[_\-\s]?secret[_\-\s]?access[_\-\s]?key)['"]?\s*[:=]\s*['"]?([a-zA-Z0-9/+=]{20,})'''
+secretGroup = 2
+
+[[rules]]
+description = "Database Connection String with Password"
+id = "database-connection-string"
+regex = '''(?i)(postgres|mysql|mongodb|redis|mssql|oracle)://[^:]+:([^@]+)@'''
+secretGroup = 2
+
+[allowlist]
+description = "Allowlisted files and paths"
+files = [
+    '''.gitleaks.toml''',
+    '''(.*?)(jpg|gif|png|doc|pdf|bin|svg|socket)$''',
+    '''(.*)\.lock$''',
+    '''.env.example''',
+    '''README.md''',
+    '''CLAUDE.md'''
+]
+
+# Allow test files that might contain example keys
+paths = [
+    '''tests/.*''',
+    '''test/.*''',
+    '''.*_test\.py$''',
+    '''.*\.test\.py$'''
+]
+
+# Allow specific test patterns that look like secrets
+regexes = [
+    '''your[_\-]?.*[_\-]?key[_\-]?here''',
+    '''example[_\-]?key''',
+    '''test[_\-]?key''',
+    '''dummy[_\-]?key''',
+    '''fake[_\-]?key''',
+    '''mock[_\-]?key''',
+    '''sample[_\-]?key'''
+]
