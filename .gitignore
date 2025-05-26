@@ -73,12 +73,85 @@ data/
 
 # Environment files
 .env
+.env.*
+*.env
 .env.local
 .env.*.local
+.envrc
+env.sh
+environment.sh
+
+# Security - Private Keys
+*.pem
+*.key
+*.p12
+*.pfx
+*.cert
+*.crt
+*.cer
+*.der
+*.ca
+*.keystore
+*.jks
+*.truststore
+id_rsa*
+id_dsa*
+id_ecdsa*
+id_ed25519*
+*_rsa
+*_dsa
+*_ecdsa
+*_ed25519
+
+# Security - Credentials
+*.secret
+*.secrets
+*.credentials
+*.password
+*.passwd
+aws_access_key_id
+aws_secret_access_key
+google*.json
+service*account*.json
+*.kdbx
+*.keychain
+*.kwallet
+.aws/credentials
+.docker/config.json
+kubeconfig
+.kube/config
+
+# Security - API Keys and Tokens
+api_key*
+api-key*
+apikey*
+*.token
+*token.txt
+*tokens.txt
+auth_token*
+access_token*
+refresh_token*
+bearer_token*
+private_token*
+secret_token*
+
+# SSH
+.ssh/
+known_hosts
+authorized_keys
+ssh_host_*_key
+ssh_host_*_key.pub
+
+# GPG
+.gnupg/
+*.gpg
+*.asc
+*.sig
 
 # OS
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # Project specific
 futures_analysis.log
@@ -87,3 +160,14 @@ futures_analysis.log
 
 # Ruff
 .ruff_cache/
+
+# Pre-commit
+.secrets.baseline
+
+# Gitleaks
+.gitleaks.toml
+
+# Alpha Vantage API Keys (project specific)
+alpha_vantage_key*
+av_key*
+ALPHA_VANTAGE_API_KEY*
