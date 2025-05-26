@@ -1,0 +1,28 @@
+version: '3.8'
+
+# Development overrides
+services:
+  backend:
+    volumes:
+      - .:/app
+      - ./data:/app/data
+    environment:
+      - DEBUG=true
+      - LOG_LEVEL=debug
+    command: /app/.venv/bin/uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"  # Expose backend directly for development
+
+  frontend:
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules  # Anonymous volume for node_modules
+    environment:
+      - NODE_ENV=development
+    command: npm run dev
+    ports:
+      - "3000:3000"  # Expose frontend directly for development
+
+  redis:
+    ports:
+      - "6379:6379"  # Expose Redis for debugging

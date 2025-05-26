@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+    container_name: oil-gas-backend
+    environment:
+      - DATABASE_PATH=/app/data/futures_analysis.db
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET_KEY=your-super-secret-jwt-key-change-in-production
+      - CORS_ORIGINS=http://localhost:3000,http://localhost
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - redis
+    networks:
+      - app_network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend/Dockerfile
+    container_name: oil-gas-frontend
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost/api
+    depends_on:
+      - backend
+    networks:
+      - app_network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: oil-gas-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - app_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  nginx:
+    build:
+      context: .
+      dockerfile: docker/nginx/Dockerfile
+    container_name: oil-gas-nginx
+    ports:
+      - "80:80"
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - app_network
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+
+networks:
+  app_network:
+    driver: bridge

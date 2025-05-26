@@ -13,6 +13,10 @@ def create_all_tables(conn: duckdb.DuckDBPyConnection) -> None:
     create_implied_volatility_table(conn)
     create_greeks_table(conn)
     create_market_data_log_table(conn)
+    # User management tables
+    create_users_table(conn)
+    create_user_sessions_table(conn)
+    create_user_audit_log_table(conn)
 
 
 def create_commodities_table(conn: duckdb.DuckDBPyConnection) -> None:
@@ -197,4 +201,78 @@ def create_market_data_log_table(conn: duckdb.DuckDBPyConnection) -> None:
             error_message VARCHAR,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
+    """)
+
+
+def create_users_table(conn: duckdb.DuckDBPyConnection) -> None:
+    """Create users table for authentication."""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            email VARCHAR(255) UNIQUE NOT NULL,
+            password_hash VARCHAR(255) NOT NULL,
+            full_name VARCHAR(255),
+            role VARCHAR(50) NOT NULL DEFAULT 'viewer',
+            is_active BOOLEAN DEFAULT true,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_login TIMESTAMP
+        )
+    """)
+
+    # Create indexes
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_users_email
+        ON users(email)
+    """)
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_users_role
+        ON users(role)
+    """)
+
+
+def create_user_sessions_table(conn: duckdb.DuckDBPyConnection) -> None:
+    """Create user sessions table for JWT token management."""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS user_sessions (
+            session_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id UUID NOT NULL,
+            token_hash VARCHAR(255) NOT NULL,
+            expires_at TIMESTAMP NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(user_id)
+        )
+    """)
+
+    # Create indexes for performance
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_sessions_user_id
+        ON user_sessions(user_id)
+    """)
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_sessions_expires
+        ON user_sessions(expires_at)
+    """)
+
+
+def create_user_audit_log_table(conn: duckdb.DuckDBPyConnection) -> None:
+    """Create audit log table for user actions."""
+    conn.execute("""
+        CREATE SEQUENCE IF NOT EXISTS seq_user_audit_log_id START 1;
+        CREATE TABLE IF NOT EXISTS user_audit_log (
+            log_id INTEGER PRIMARY KEY DEFAULT nextval('seq_user_audit_log_id'),
+            user_id UUID,
+            action VARCHAR(100) NOT NULL,
+            resource VARCHAR(255),
+            ip_address VARCHAR(45),
+            user_agent TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(user_id)
+        )
+    """)
+
+    # Create index for querying user actions
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_audit_user_id
+        ON user_audit_log(user_id, created_at)
     """)
