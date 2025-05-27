@@ -49,6 +49,10 @@ test-results/
 # IDE
 .idea/
 .vscode/
+
+# Application Logs
+logs/
+
 *.swp
 *.swo
 *~
@@ -62,14 +66,13 @@ test-results/
 
 # Logs
 *.log
-logs/
+data/
 
 # Database
 *.db
 *.db-journal
 *.duckdb
 *.duckdb.wal
-data/
 
 # Environment files
 .env

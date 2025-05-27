@@ -4,8 +4,10 @@ from datetime import date
 
 import duckdb
 import pandas as pd
+from pydantic import ValidationError
 from structlog import get_logger
 
+from src.core.validators import FuturesContractValidator, FuturesPriceValidator
 from src.pipeline.models import FuturesContract, ImpliedVolatility, OptionContract
 
 logger = get_logger()
@@ -34,35 +36,44 @@ class DatabaseOperations:
 
     # Futures Contract Operations
     def upsert_futures_contract(self, contract: FuturesContract) -> None:
-        """Insert or update a futures contract."""
+        """Insert or update a futures contract after validation."""
+        try:
+            contract_data = contract.model_dump()
+            contract_data.setdefault("created_at", None)
+            contract_data.setdefault("updated_at", None)
+            validated_contract = FuturesContractValidator(**contract_data)
+        except ValidationError as e:
+            logger.error(
+                "FuturesContract validation failed",
+                contract_id=contract.contract_id,
+                errors=e.errors(),
+            )
+            raise
+
         query = """
             INSERT INTO futures_contracts
             (contract_id, commodity_id, symbol, expiration_date,
              first_trade_date, last_trade_date, is_active)
             VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (contract_id) DO UPDATE SET
-                commodity_id = EXCLUDED.commodity_id,
-                symbol = EXCLUDED.symbol,
-                expiration_date = EXCLUDED.expiration_date,
-                first_trade_date = EXCLUDED.first_trade_date,
-                last_trade_date = EXCLUDED.last_trade_date,
-                is_active = EXCLUDED.is_active
+                is_active = EXCLUDED.is_active,
+                updated_at = get_current_timestamp()
         """
 
         self.conn.execute(
             query,
             [
-                contract.contract_id,
-                contract.commodity_id,
-                contract.symbol,
-                contract.expiration_date,
-                contract.first_trade_date,
-                contract.last_trade_date,
-                contract.is_active,
+                validated_contract.contract_id,
+                validated_contract.commodity_id,
+                validated_contract.symbol,
+                validated_contract.expiration_date,
+                validated_contract.first_trade_date,
+                validated_contract.last_trade_date,
+                validated_contract.is_active,
             ],
         )
 
-        logger.info("Upserted futures contract", contract_id=contract.contract_id)
+        logger.info("Upserted futures contract", contract_id=validated_contract.contract_id)
 
     def get_active_contracts(self, commodity_id: str | None = None) -> pd.DataFrame:
         """Get active futures contracts."""
@@ -82,44 +93,80 @@ class DatabaseOperations:
 
     # Futures Price Operations
     def bulk_insert_futures_prices(self, prices_df: pd.DataFrame) -> int:
-        """Bulk insert futures prices."""
+        """Bulk insert futures prices after validation."""
         required_columns = ["contract_id", "price_date", "close_price"]
         if not all(col in prices_df.columns for col in required_columns):
+            logger.error(
+                "DataFrame for bulk_insert_futures_prices missing required columns",
+                required=required_columns,
+                actual=prices_df.columns.tolist(),
+            )
             raise ValueError(f"DataFrame must contain columns: {required_columns}")
 
-        # Prepare data for insertion
-        insert_df = prices_df[
-            [
-                "contract_id",
-                "price_date",
-                "open_price",
-                "high_price",
-                "low_price",
-                "close_price",
-                "volume",
-            ]
-        ].copy()
+        insert_df = prices_df.copy()
+        expected_validator_cols = FuturesPriceValidator.model_fields.keys()
+        for col in expected_validator_cols:
+            if col not in insert_df.columns:
+                insert_df[col] = None
 
-        # Handle open_interest if present
-        if "open_interest" in prices_df.columns:
-            insert_df["open_interest"] = prices_df["open_interest"]
-        else:
-            insert_df["open_interest"] = None
+        cols_for_validation = [col for col in expected_validator_cols if col in insert_df.columns]
+        records_to_validate = insert_df[cols_for_validation].to_dict(orient="records")
 
-        # Add price_time if not present
-        if "price_time" not in insert_df.columns:
-            insert_df["price_time"] = None
+        valid_records = []
+        invalid_count = 0
+        for record in records_to_validate:
+            try:
+                record.setdefault("created_at", None)
+                validated_record = FuturesPriceValidator(**record)
+                valid_records.append(validated_record.model_dump(exclude_none=True))
+            except ValidationError as e:
+                logger.warning(
+                    "FuturesPrice validation failed for a record",
+                    contract_id=record.get("contract_id"),
+                    price_date=record.get("price_date"),
+                    errors=e.errors(),
+                )
+                invalid_count += 1
 
-        # Add settlement_price if not present
-        if "settlement_price" not in insert_df.columns:
-            insert_df["settlement_price"] = None
+        if invalid_count > 0:
+            logger.info(
+                "Some futures price records failed validation",
+                invalid_count=invalid_count,
+                total_attempted=len(records_to_validate),
+            )
 
-        # Use INSERT with ON CONFLICT to handle duplicates
-        query = """
+        if not valid_records:
+            logger.info("No valid futures price records to insert after validation.")
+            return 0
+
+        validated_df = pd.DataFrame(valid_records)
+
+        db_insert_cols = [
+            "contract_id",
+            "price_date",
+            "price_time",
+            "open_price",
+            "high_price",
+            "low_price",
+            "close_price",
+            "settlement_price",
+            "volume",
+            "open_interest",
+        ]
+        for col in db_insert_cols:
+            if col not in validated_df.columns:
+                validated_df[col] = None
+
+        temp_table_name = f"temp_futures_prices_{pd.Timestamp.now().strftime('%Y%m%d%H%M%S%f')}"
+        self.conn.register(temp_table_name, validated_df[db_insert_cols])
+
+        query = f"""
             INSERT INTO futures_prices
             (contract_id, price_date, price_time, open_price, high_price,
              low_price, close_price, settlement_price, volume, open_interest)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            SELECT contract_id, price_date, price_time, open_price, high_price,
+                   low_price, close_price, settlement_price, volume, open_interest
+            FROM {temp_table_name}
             ON CONFLICT (contract_id, price_date) DO UPDATE SET
                 open_price = EXCLUDED.open_price,
                 high_price = EXCLUDED.high_price,
@@ -127,39 +174,24 @@ class DatabaseOperations:
                 close_price = EXCLUDED.close_price,
                 settlement_price = EXCLUDED.settlement_price,
                 volume = EXCLUDED.volume,
-                open_interest = EXCLUDED.open_interest
+                open_interest = EXCLUDED.open_interest,
+                updated_at = get_current_timestamp()
         """
 
-        records_inserted = 0
-        for _, row in insert_df.iterrows():
-            try:
-                self.conn.execute(
-                    query,
-                    [
-                        row["contract_id"],
-                        row["price_date"],
-                        row["price_time"],
-                        float(row["open_price"]) if pd.notna(row["open_price"]) else None,
-                        float(row["high_price"]) if pd.notna(row["high_price"]) else None,
-                        float(row["low_price"]) if pd.notna(row["low_price"]) else None,
-                        float(row["close_price"]),
-                        float(row["settlement_price"])
-                        if pd.notna(row["settlement_price"])
-                        else None,
-                        int(row["volume"]) if pd.notna(row["volume"]) else None,
-                        int(row["open_interest"]) if pd.notna(row["open_interest"]) else None,
-                    ],
-                )
-                records_inserted += 1
-            except Exception as e:
-                logger.error(
-                    "Failed to insert price record",
-                    contract_id=row["contract_id"],
-                    date=row["price_date"],
-                    error=str(e),
-                )
+        try:
+            cursor = self.conn.execute(query)
+            records_inserted = cursor.rowcount if cursor.rowcount != -1 else len(validated_df)
+            logger.info(
+                "Bulk inserted/updated futures prices",
+                records_processed=records_inserted,
+                valid_records=len(valid_records),
+            )
+        except Exception as e:
+            logger.error("Failed during bulk insert of futures prices", error=str(e))
+            raise
+        finally:
+            self.conn.unregister(temp_table_name)
 
-        logger.info("Bulk inserted futures prices", records=records_inserted)
         return records_inserted
 
     def get_futures_prices(
@@ -303,9 +335,7 @@ class DatabaseOperations:
                 iv.price_date,
                 float(iv.implied_vol),
                 float(iv.underlying_price),
-                float(iv.risk_free_rate)
-                if iv.risk_free_rate
-                else 0.05,  # Default 5% risk-free rate
+                float(iv.risk_free_rate) if iv.risk_free_rate else 0.05,
                 iv.calculation_method,
             ],
         )
