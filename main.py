@@ -8,6 +8,8 @@ from pathlib import Path
 
 from structlog import get_logger
 
+from src.core.logging_config import setup_logging
+
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -123,8 +125,80 @@ def query_data(args):
         sys.exit(1)
 
 
+def run_backfill(args):
+    """Run historical data backfill."""
+    logger.info(
+        "Starting historical backfill process",
+        commodities=args.commodities,
+        start_date=args.start_date.strftime("%Y-%m-%d"),
+        end_date=args.end_date.strftime("%Y-%m-%d"),
+        chunk_months=args.chunk_months,
+    )
+
+    # Check database health
+    db_manager = DatabaseManager(args.db_path)
+    if not db_manager.health_check():
+        print("✗ Database is not properly initialized. Run 'setup-db' first.")
+        sys.exit(1)
+
+    # Run pipeline
+    pipeline = DataIngestionPipeline(args.db_path)
+
+    try:
+        stats = pipeline.run_historical_backfill(
+            commodities=args.commodities,
+            start_date=args.start_date,
+            end_date=args.end_date,
+            chunk_months=args.chunk_months,
+        )
+
+        # Print results
+        print("\n📊 Backfill Results:")
+        print("=" * 50)
+
+        for commodity, result in stats.items():
+            status_icon = (
+                "✓"
+                if result["status"] == "SUCCESS"
+                else ("⚠️" if result["status"] == "PARTIAL_FAILURE" else "✗")
+            )
+            print(f"\n{status_icon} {commodity}:")
+            print(f"  - Futures records ingested: {result['futures_records']}")
+            print(f"  - Status: {result['status']}")
+            if result.get("errors"):
+                print("  - Errors:")
+                for err in result["errors"]:
+                    print(f"    - {err}")
+
+        print("\n" + "=" * 50)
+
+        all_success = all(r["status"] == "SUCCESS" for r in stats.values())
+        any_partial_failure = any(r["status"] == "PARTIAL_FAILURE" for r in stats.values())
+        all_no_data = all(r["status"] == "NO_DATA" for r in stats.values())
+
+        if all_success:
+            print("✓ All commodities backfilled successfully")
+        elif any_partial_failure:
+            print("⚠️ Some commodities had partial failures during backfill.")
+        elif all_no_data:
+            print("✓ Process completed, but no data found or ingested for any commodity.")
+        else:
+            print("✗ All commodities failed to backfill or no data was processed.")
+            # Consider sys.exit(1) for complete failures if desired
+
+    except Exception as e:
+        logger.error("Backfill pipeline failed", error=str(e))
+        print(f"\n✗ Backfill pipeline failed: {e}")
+        sys.exit(1)
+    finally:
+        pipeline.close()
+
+
 def main():
     """Main CLI entry point."""
+    setup_logging()
+
+    # Argument parsing
     parser = argparse.ArgumentParser(
         description="Oil & Gas Futures Analysis Pipeline",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -144,6 +218,9 @@ Examples:
 
   # Query implied volatility surface
   %(prog)s query volatility --commodity WTI --date 2024-01-25
+
+  # Backfill historical data for WTI from 2022-01-01 to 2022-12-31
+  %(prog)s backfill --commodities WTI --start-date 2022-01-01 --end-date 2022-12-31
         """,
     )
 
@@ -154,7 +231,8 @@ Examples:
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # Setup database command
-    subparsers.add_parser("setup-db", help="Initialize database schema")
+    setup_parser = subparsers.add_parser("setup-db", help="Initialize database schema")
+    setup_parser.set_defaults(func=setup_database)  # Associate function with command
 
     # Ingest command
     ingest_parser = subparsers.add_parser("ingest", help="Run data ingestion pipeline")
@@ -171,6 +249,36 @@ Examples:
         choices=["1d", "5d", "1mo", "3mo", "6mo", "1y"],
         help="Period for historical data",
     )
+    ingest_parser.set_defaults(func=ingest_data)
+
+    # Backfill command
+    backfill_parser = subparsers.add_parser("backfill", help="Run historical data backfill")
+    backfill_parser.add_argument(
+        "--commodities",
+        nargs="+",
+        choices=["WTI", "NG"],
+        default=["WTI", "NG"],
+        help="Commodities to backfill",
+    )
+    backfill_parser.add_argument(
+        "--start-date",
+        required=True,
+        type=lambda s: datetime.strptime(s, "%Y-%m-%d").replace(tzinfo=UTC),
+        help="Start date for backfill (YYYY-MM-DD)",
+    )
+    backfill_parser.add_argument(
+        "--end-date",
+        required=True,
+        type=lambda s: datetime.strptime(s, "%Y-%m-%d").replace(tzinfo=UTC),
+        help="End date for backfill (YYYY-MM-DD)",
+    )
+    backfill_parser.add_argument(
+        "--chunk-months",
+        type=int,
+        default=1,
+        help="Number of months per data fetching chunk (default: 1)",
+    )
+    backfill_parser.set_defaults(func=run_backfill)
 
     # Query command
     query_parser = subparsers.add_parser("query", help="Query stored data")
@@ -186,6 +294,7 @@ Examples:
         "--end-date", type=lambda s: datetime.strptime(s, "%Y-%m-%d").replace(tzinfo=UTC).date()
     )
     prices_parser.add_argument("--limit", type=int, default=20, help="Limit number of results")
+    prices_parser.set_defaults(func=query_data)
 
     # Query volatility
     vol_parser = query_subparsers.add_parser("volatility", help="Query implied volatility")
@@ -193,27 +302,17 @@ Examples:
     vol_parser.add_argument(
         "--date", type=lambda s: datetime.strptime(s, "%Y-%m-%d").replace(tzinfo=UTC).date()
     )
+    vol_parser.set_defaults(func=query_data)
 
     # Parse arguments
     args = parser.parse_args()
 
     if not args.command:
         parser.print_help()
-        sys.exit(1)
+        sys.exit(1)  # Exit if no command is given
 
-    # Execute command
-    if args.command == "setup-db":
-        setup_database(args)
-    elif args.command == "ingest":
-        ingest_data(args)
-    elif args.command == "query":
-        if not args.query_type:
-            query_parser.print_help()
-            sys.exit(1)
-        query_data(args)
-    else:
-        parser.print_help()
-        sys.exit(1)
+    # Call the function associated with the command
+    args.func(args)
 
 
 if __name__ == "__main__":

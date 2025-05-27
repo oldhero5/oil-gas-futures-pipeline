@@ -167,6 +167,19 @@
     - Weekly data cleanup
 - [ ] Add job monitoring dashboard
 - [ ] Implement failure recovery and retries
+- [ ] Build historical price data backfill system
+- [ ] Add data validation and cleaning pipeline
+- [ ] Create duplicate detection and handling
+```
+
+#### 10.b Testing Data Pipeline
+```python
+# Priority: High - Ensuring data reliability
+- [ ] Unit tests for API clients
+- [ ] Integration tests for data pipeline
+- [ ] Mock API responses for testing
+- [ ] Performance tests for data ingestion
+- [ ] Validate data accuracy against known sources
 ```
 
 ### 📋 MEDIUM PRIORITY (Week 5-6)
@@ -198,30 +211,30 @@
     - Partitioning strategies
 - [ ] Frontend optimization:
     - Code splitting
-    - Lazy loading
-    - Service worker for offline
+    - Bundle analysis
+- [ ] Batch calculation optimization for Greeks
 ```
 
-#### 13. Advanced Analytics
+#### 13. Database Enhancements
 ```python
-# Priority: Medium - Feature depth
-- [ ] Volatility analytics:
-    - Surface generation
-    - Term structure analysis
-    - Skew analytics
-- [ ] Spread analysis:
-    - Crack spreads
-    - Calendar spreads
-    - Inter-commodity spreads
-- [ ] Risk metrics:
-    - VaR calculations
-    - Stress testing
-    - Correlation matrices
+# Priority: Medium - Robustness and maintainability
+- [ ] Configure logging system with rotation
+- [ ] Create data validation utilities (for database schema/content)
+- [ ] Set up database backup procedures
+- [ ] Write initial schema migration scripts
+```
+
+#### 14. Pricing Engine Enhancements
+```python
+# Priority: Medium - Expanding analytical capabilities
+- [ ] Add binomial tree pricing model
+- [ ] Build historical volatility calculations
+- [ ] Add American option pricing models
 ```
 
 ### 🎯 LOWER PRIORITY (Week 7+)
 
-#### 14. Mobile Application
+#### 15. Mobile Application
 ```typescript
 # Priority: Low - Platform expansion
 - [ ] React Native mobile app:
@@ -231,7 +244,7 @@
     - Offline data access
 ```
 
-#### 15. Advanced Features
+#### 16. Advanced Features
 ```python
 # Priority: Low - Future enhancements
 - [ ] Machine learning integration
@@ -258,7 +271,7 @@
 
 ### Week 3-4: Production Ready
 1. **Week 3**: Production Docker, Kubernetes, monitoring
-2. **Week 4**: Performance optimization, documentation
+2. **Week 4**: Optimization + Documentation + Launch
 
 ## Docker Directory Structure
 ```
@@ -338,14 +351,18 @@ CREATE TABLE user_audit_log (
 );
 ```
 
-## Success Metrics (Updated)
+## Success Metrics
 
-- ✅ Docker deployment with <5 minute setup
-- ✅ Dashboard load time <2 seconds
-- ✅ User authentication <100ms
-- ✅ Real-time price updates <50ms latency
-- ✅ 99.9% uptime for all services
-- ✅ Support for 1000+ concurrent users
+- ✅ Docker deployment in <5 minutes
+- ✅ Dashboard response time <2 seconds
+- ✅ API latency <100ms
+- ✅ 99.9% uptime SLA
+- ✅ Support 1000+ concurrent users
+- Zero manual data collection
+- Real-time analytics available
+- Reduced analysis time by 80%
+- Accessible to non-technical users
+- Scalable to new commodities
 
 ## Critical Path
 
@@ -355,5 +372,5 @@ CREATE TABLE user_audit_log (
 4. **Week 4**: Optimization + Documentation + Launch
 
 ---
-
-*Note: Following all Windsurf global rules - no bare metal deployment, proper user management, and accessible frontend for non-technical users. Security and containerization are now top priorities.*
+## Priority Matrix
+- (Content of priority matrix to be defined or copied if simple text)

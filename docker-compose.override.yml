@@ -6,14 +6,19 @@ services:
     volumes:
       - .:/app
       - ./data:/app/data
+      - /app/.venv # Preserve .venv from image
     environment:
       - DEBUG=true
       - LOG_LEVEL=debug
-    command: /app/.venv/bin/uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
+    command: /app/.venv/bin/uvicorn src.api_server:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8000:8000"  # Expose backend directly for development
 
   frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend/Dockerfile
+      target: builder # Use the builder stage for dev
     volumes:
       - ./frontend:/app
       - /app/node_modules  # Anonymous volume for node_modules
@@ -26,3 +31,57 @@ services:
   redis:
     ports:
       - "6379:6379"  # Expose Redis for debugging
+
+  celery_worker:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile # Corrected Dockerfile path
+    command: /app/.venv/bin/celery -A src.celery_app worker -l info
+    volumes:
+      - .:/app
+      - ./data:/app/data
+      - /app/.venv # Preserve .venv from image
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - LOG_LEVEL=debug # Match backend
+    depends_on:
+      - redis
+      - backend # Ensures backend (and potentially DB init) runs first
+    networks:
+      - app_network
+
+  celery_beat:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile # Corrected Dockerfile path
+    command: /app/.venv/bin/celery -A src.celery_app beat -l info
+    volumes:
+      - .:/app
+      - ./data:/app/data # For celerybeat-schedule file if not using DB scheduler
+      - /app/.venv
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - LOG_LEVEL=debug
+    depends_on:
+      - redis
+      - backend
+    networks:
+      - app_network
+
+  flower:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile # Corrected Dockerfile path
+    command: /app/.venv/bin/celery -A src.celery_app flower --port=5555 --broker_api=redis://redis:6379/0
+    ports:
+      - "5555:5555"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - redis
+      - celery_worker
+    networks:
+      - app_network

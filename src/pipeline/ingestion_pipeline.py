@@ -3,6 +3,7 @@
 from datetime import UTC, datetime, timedelta
 
 import pandas as pd
+from dateutil.relativedelta import relativedelta
 from structlog import get_logger
 
 from src.analytics import ImpliedVolatilitySolver
@@ -278,6 +279,107 @@ class DataIngestionPipeline:
                 }
 
         return stats
+
+    def run_historical_backfill(
+        self,
+        commodities: list[str],
+        start_date: datetime,
+        end_date: datetime,
+        chunk_months: int = 1,
+    ) -> dict:
+        """Run historical data backfill for specified commodities and date range.
+
+        Args:
+            commodities: List of commodity IDs to process.
+            start_date: The overall start date for the backfill.
+            end_date: The overall end date for the backfill.
+            chunk_months: Number of months per data fetching chunk.
+
+        Returns:
+            Dictionary with ingestion statistics.
+        """
+        if not commodities:
+            commodities = ["WTI", "NG"]
+
+        overall_stats = {}
+        logger.info(
+            "Starting historical backfill",
+            commodities=commodities,
+            overall_start_date=start_date.strftime("%Y-%m-%d"),
+            overall_end_date=end_date.strftime("%Y-%m-%d"),
+            chunk_months=chunk_months,
+        )
+
+        for commodity in commodities:
+            logger.info("Backfilling commodity", commodity=commodity)
+            commodity_stats = {
+                "futures_records": 0,
+                "options_records": 0,
+                "status": "PENDING",
+                "errors": [],
+            }
+
+            current_chunk_start_date = start_date
+            total_futures_records_for_commodity = 0
+
+            while current_chunk_start_date <= end_date:
+                # Determine end of the current chunk
+                current_chunk_end_date = (
+                    current_chunk_start_date
+                    + relativedelta(months=chunk_months)
+                    - relativedelta(days=1)
+                )
+                if current_chunk_end_date > end_date:
+                    current_chunk_end_date = end_date
+
+                logger.info(
+                    "Processing chunk for commodity",
+                    commodity=commodity,
+                    chunk_start=current_chunk_start_date.strftime("%Y-%m-%d"),
+                    chunk_end=current_chunk_end_date.strftime("%Y-%m-%d"),
+                )
+
+                try:
+                    # Ingest futures data for the chunk
+                    futures_records = self.ingest_futures_data(
+                        commodity_id=commodity,
+                        start_date=current_chunk_start_date,
+                        end_date=current_chunk_end_date,
+                        period=None,
+                    )
+                    total_futures_records_for_commodity += futures_records
+                    commodity_stats["status"] = "SUCCESS"
+
+                except Exception as e:
+                    chunk_error_msg = f"Failed to process chunk {current_chunk_start_date.strftime('%Y-%m-%d')} to {current_chunk_end_date.strftime('%Y-%m-%d')}: {str(e)}"
+                    logger.error(chunk_error_msg, commodity=commodity)
+                    commodity_stats["errors"].append(chunk_error_msg)
+                    commodity_stats["status"] = (
+                        "PARTIAL_FAILURE" if total_futures_records_for_commodity > 0 else "FAILED"
+                    )
+                    # Optionally, decide if one chunk failure should stop the whole commodity backfill
+                    # For now, we continue to the next chunk
+
+                # Move to the start of the next chunk
+                current_chunk_start_date = current_chunk_start_date + relativedelta(
+                    months=chunk_months
+                )
+
+            commodity_stats["futures_records"] = total_futures_records_for_commodity
+            if not commodity_stats["errors"]:
+                commodity_stats["status"] = (
+                    "SUCCESS" if total_futures_records_for_commodity > 0 else "NO_DATA"
+                )
+            elif commodity_stats["status"] == "PENDING":
+                commodity_stats["status"] = "NO_DATA"
+
+            overall_stats[commodity] = commodity_stats
+            logger.info(
+                "Completed backfill for commodity", commodity=commodity, stats=commodity_stats
+            )
+
+        logger.info("Historical backfill completed", overall_stats=overall_stats)
+        return overall_stats
 
     def close(self) -> None:
         """Close database connection."""

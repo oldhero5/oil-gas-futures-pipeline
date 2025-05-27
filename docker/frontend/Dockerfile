@@ -8,7 +8,7 @@ WORKDIR /app
 
 # Copy package files
 COPY frontend/package*.json ./
-RUN npm ci --only=production
+RUN npm ci
 
 # Build stage
 FROM base AS builder
