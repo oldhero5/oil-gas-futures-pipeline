@@ -1,14 +1,12 @@
 """Tests for options analytics API endpoints."""
 
-import pytest
-from unittest.mock import Mock, patch
-from fastapi.testclient import TestClient
-import pandas as pd
 from datetime import date
-from decimal import Decimal
+from unittest.mock import Mock, patch
+
+import pandas as pd
+from fastapi.testclient import TestClient
 
 from src.api.main import app
-
 
 client = TestClient(app)
 
@@ -22,7 +20,7 @@ class TestOptionsEndpoints:
         mock_bs = Mock()
         mock_bs_class.return_value = mock_bs
         mock_bs.call_price.return_value = 5.25
-        
+
         request_data = {
             "commodity_id": "WTI",
             "underlying_price": "75.50",
@@ -30,11 +28,11 @@ class TestOptionsEndpoints:
             "days_to_expiry": 30,
             "risk_free_rate": "0.05",
             "volatility": "0.25",
-            "option_type": "CALL"
+            "option_type": "CALL",
         }
-        
+
         response = client.post("/api/options/calculate", json=request_data)
-        
+
         assert response.status_code == 200
         data = response.json()
         assert float(data["option_price"]) == 5.25
@@ -48,7 +46,7 @@ class TestOptionsEndpoints:
         mock_bs = Mock()
         mock_bs_class.return_value = mock_bs
         mock_bs.put_price.return_value = 3.75
-        
+
         request_data = {
             "commodity_id": "WTI",
             "underlying_price": "74.50",
@@ -56,11 +54,11 @@ class TestOptionsEndpoints:
             "days_to_expiry": 30,
             "risk_free_rate": "0.05",
             "volatility": "0.25",
-            "option_type": "PUT"
+            "option_type": "PUT",
         }
-        
+
         response = client.post("/api/options/calculate", json=request_data)
-        
+
         assert response.status_code == 200
         data = response.json()
         assert float(data["option_price"]) == 3.75
@@ -79,7 +77,7 @@ class TestOptionsEndpoints:
         mock_bs.theta_call.return_value = -0.0156
         mock_bs.vega.return_value = 0.1234
         mock_bs.rho_call.return_value = 0.0567
-        
+
         request_data = {
             "commodity_id": "WTI",
             "underlying_price": "75.50",
@@ -87,11 +85,11 @@ class TestOptionsEndpoints:
             "days_to_expiry": 30,
             "risk_free_rate": "0.05",
             "volatility": "0.25",
-            "option_type": "CALL"
+            "option_type": "CALL",
         }
-        
+
         response = client.post("/api/options/greeks", json=request_data)
-        
+
         assert response.status_code == 200
         data = response.json()
         assert float(data["delta"]) == 0.623400
@@ -112,7 +110,7 @@ class TestOptionsEndpoints:
         mock_bs.theta_put.return_value = -0.0134
         mock_bs.vega.return_value = 0.1234
         mock_bs.rho_put.return_value = -0.0433
-        
+
         request_data = {
             "commodity_id": "WTI",
             "underlying_price": "74.50",
@@ -120,11 +118,11 @@ class TestOptionsEndpoints:
             "days_to_expiry": 30,
             "risk_free_rate": "0.05",
             "volatility": "0.25",
-            "option_type": "PUT"
+            "option_type": "PUT",
         }
-        
+
         response = client.post("/api/options/greeks", json=request_data)
-        
+
         assert response.status_code == 200
         data = response.json()
         assert float(data["delta"]) == -0.376600
@@ -140,7 +138,7 @@ class TestOptionsEndpoints:
         mock_iv_solver = Mock()
         mock_iv_class.return_value = mock_iv_solver
         mock_iv_solver.calculate_iv.return_value = (0.2567, 5)  # IV and iterations
-        
+
         request_data = {
             "commodity_id": "WTI",
             "option_price": "5.25",
@@ -148,11 +146,11 @@ class TestOptionsEndpoints:
             "strike_price": "75.00",
             "days_to_expiry": 30,
             "risk_free_rate": "0.05",
-            "option_type": "CALL"
+            "option_type": "CALL",
         }
-        
+
         response = client.post("/api/options/implied-volatility", json=request_data)
-        
+
         assert response.status_code == 200
         data = response.json()
         assert float(data["implied_volatility"]) == 0.256700
@@ -165,7 +163,7 @@ class TestOptionsEndpoints:
         mock_iv_solver = Mock()
         mock_iv_class.return_value = mock_iv_solver
         mock_iv_solver.calculate_iv.return_value = (None, 100)  # No convergence
-        
+
         request_data = {
             "commodity_id": "WTI",
             "option_price": "50.00",  # Unrealistic price
@@ -173,11 +171,11 @@ class TestOptionsEndpoints:
             "strike_price": "75.00",
             "days_to_expiry": 1,
             "risk_free_rate": "0.05",
-            "option_type": "CALL"
+            "option_type": "CALL",
         }
-        
+
         response = client.post("/api/options/implied-volatility", json=request_data)
-        
+
         assert response.status_code == 400
         assert "Failed to converge" in response.json()["detail"]
 
@@ -186,19 +184,21 @@ class TestOptionsEndpoints:
         """Test successful volatility surface retrieval."""
         mock_db = Mock()
         mock_db_ops.return_value = mock_db
-        
+
         # Mock DataFrame with volatility surface data
-        mock_df = pd.DataFrame({
-            "strike_price": [70.0, 75.0, 80.0],
-            "expiration_date": [date(2024, 2, 15), date(2024, 2, 15), date(2024, 2, 15)],
-            "option_type": ["CALL", "CALL", "CALL"],
-            "implied_vol": [0.28, 0.25, 0.27],
-            "underlying_price": [75.0, 75.0, 75.0]
-        })
+        mock_df = pd.DataFrame(
+            {
+                "strike_price": [70.0, 75.0, 80.0],
+                "expiration_date": [date(2024, 2, 15), date(2024, 2, 15), date(2024, 2, 15)],
+                "option_type": ["CALL", "CALL", "CALL"],
+                "implied_vol": [0.28, 0.25, 0.27],
+                "underlying_price": [75.0, 75.0, 75.0],
+            }
+        )
         mock_db.get_implied_volatility_surface.return_value = mock_df
-        
+
         response = client.get("/api/options/volatility/surface/WTI")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["commodity_id"] == "WTI"
@@ -212,19 +212,17 @@ class TestOptionsEndpoints:
         """Test volatility surface with mock data generation."""
         mock_db = Mock()
         mock_db_ops.return_value = mock_db
-        
+
         # Mock empty DataFrame to trigger mock data generation
         mock_surface_df = pd.DataFrame()
         mock_db.get_implied_volatility_surface.return_value = mock_surface_df
-        
+
         # Mock prices DataFrame for underlying price
-        mock_prices_df = pd.DataFrame({
-            "close_price": [75.50]
-        })
+        mock_prices_df = pd.DataFrame({"close_price": [75.50]})
         mock_db.get_futures_prices.return_value = mock_prices_df
-        
+
         response = client.get("/api/options/volatility/surface/WTI")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["commodity_id"] == "WTI"
@@ -237,14 +235,14 @@ class TestOptionsEndpoints:
         """Test volatility surface when no price data available."""
         mock_db = Mock()
         mock_db_ops.return_value = mock_db
-        
+
         # Mock empty DataFrames for both surface and prices
         mock_empty_df = pd.DataFrame()
         mock_db.get_implied_volatility_surface.return_value = mock_empty_df
         mock_db.get_futures_prices.return_value = mock_empty_df
-        
+
         response = client.get("/api/options/volatility/surface/INVALID")
-        
+
         assert response.status_code == 404
         assert "No price data" in response.json()["detail"]
 
@@ -258,9 +256,9 @@ class TestOptionsEndpoints:
             "days_to_expiry": 30,
             "risk_free_rate": "0.05",
             "volatility": "0.25",
-            "option_type": "INVALID"
+            "option_type": "INVALID",
         }
-        
+
         response = client.post("/api/options/calculate", json=request_data)
         assert response.status_code == 422  # Validation error
 
@@ -274,9 +272,9 @@ class TestOptionsEndpoints:
             "days_to_expiry": 30,
             "risk_free_rate": "0.05",
             "volatility": "0.25",
-            "option_type": "CALL"
+            "option_type": "CALL",
         }
-        
+
         response = client.post("/api/options/calculate", json=request_data)
         assert response.status_code == 422  # Validation error
 
@@ -286,7 +284,7 @@ class TestOptionsEndpoints:
             mock_bs = Mock()
             mock_bs_class.return_value = mock_bs
             mock_bs.call_price.side_effect = Exception("Calculation error")
-            
+
             request_data = {
                 "commodity_id": "WTI",
                 "underlying_price": "75.50",
@@ -294,11 +292,11 @@ class TestOptionsEndpoints:
                 "days_to_expiry": 30,
                 "risk_free_rate": "0.05",
                 "volatility": "0.25",
-                "option_type": "CALL"
+                "option_type": "CALL",
             }
-            
+
             response = client.post("/api/options/greeks", json=request_data)
-            
+
             assert response.status_code == 500
             assert "Failed to calculate Greeks" in response.json()["detail"]
 
@@ -308,7 +306,7 @@ class TestOptionsEndpoints:
             mock_bs = Mock()
             mock_bs_class.return_value = mock_bs
             mock_bs.call_price.return_value = 2.50
-            
+
             # Test ATM option (within 2% of spot)
             request_data = {
                 "commodity_id": "WTI",
@@ -317,11 +315,11 @@ class TestOptionsEndpoints:
                 "days_to_expiry": 30,
                 "risk_free_rate": "0.05",
                 "volatility": "0.25",
-                "option_type": "CALL"
+                "option_type": "CALL",
             }
-            
+
             response = client.post("/api/options/calculate", json=request_data)
-            
+
             assert response.status_code == 200
             data = response.json()
             assert data["moneyness"] == "ATM"

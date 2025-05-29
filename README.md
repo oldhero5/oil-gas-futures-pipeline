@@ -367,7 +367,7 @@ The complete API documentation is available when the server is running:
 
 **Authentication (`/api/auth/`)**
 - `POST /register` - User registration
-- `POST /login` - User authentication  
+- `POST /login` - User authentication
 - `GET /me` - Current user profile
 - `POST /logout` - User logout
 - `POST /refresh` - Token refresh

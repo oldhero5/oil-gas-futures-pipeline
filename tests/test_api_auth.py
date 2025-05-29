@@ -42,7 +42,7 @@ class TestAuthEndpoints:
 
         user_data = {
             "email": "test@example.com",
-            "password": "testpassword123",
+            "password": "testpassword123",  # pragma: allowlist secret
             "full_name": "Test User",
         }
 
@@ -66,8 +66,8 @@ class TestAuthEndpoints:
 
         user_data = {
             "email": "existing@example.com",
-            "password": "testpassword123",
-            "full_name": "Test User",
+            "password": "testpassword123",  # pragma: allowlist secret
+            "full_name": "Test User",  # pragma: allowlist secret
         }
 
         response = client.post("/api/auth/register", json=user_data)
@@ -97,7 +97,10 @@ class TestAuthEndpoints:
         )
         mock_db.conn.execute.return_value.fetchone.return_value = mock_user_row
 
-        login_data = {"email": "test@example.com", "password": "testpassword123"}
+        login_data = {
+            "email": "test@example.com",
+            "password": "testpassword123",  # pragma: allowlist secret
+        }
 
         response = client.post("/api/auth/login", json=login_data)
 
@@ -114,9 +117,10 @@ class TestAuthEndpoints:
         mock_db_ops.return_value = mock_db
         # Mock no user found
         mock_db.conn.execute.return_value.fetchone.return_value = None
-
-        login_data = {"email": "nonexistent@example.com", "password": "wrongpassword"}
-
+        login_data = {
+            "email": "nonexistent@example.com",
+            "password": "wrongpassword",  # pragma: allowlist secret
+        }
         response = client.post("/api/auth/login", json=login_data)
 
         assert response.status_code == 401
@@ -144,7 +148,10 @@ class TestAuthEndpoints:
         )
         mock_db.conn.execute.return_value.fetchone.return_value = mock_user_row
 
-        login_data = {"email": "test@example.com", "password": "testpassword123"}
+        login_data = {
+            "email": "test@example.com",
+            "password": "testpassword123",  # pragma: allowlist secret
+        }
 
         response = client.post("/api/auth/login", json=login_data)
 
