@@ -50,19 +50,17 @@ def setup_logging(
     )
 
     # Console Handler (human-readable)
-    console_formatter = structlog.stdlib.ProcessorFormatter.wrap_for_formatter(
-        # Renderer for console output
-        renderer=structlog.dev.ConsoleRenderer(),
-        # foreign_pre_chain=shared_processors, # Not needed if configuring root logger directly
+    console_formatter = structlog.stdlib.ProcessorFormatter(
+        processor=structlog.dev.ConsoleRenderer(),
+        foreign_pre_chain=shared_processors,
     )
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(console_formatter)
 
     # File Handler (JSON, rotating)
-    file_formatter = structlog.stdlib.ProcessorFormatter.wrap_for_formatter(
-        # Renderer for file output (JSON)
-        renderer=structlog.processors.JSONRenderer(),
-        # foreign_pre_chain=shared_processors, # Not needed if configuring root logger directly
+    file_formatter = structlog.stdlib.ProcessorFormatter(
+        processor=structlog.processors.JSONRenderer(),
+        foreign_pre_chain=shared_processors,
     )
     file_handler = logging.handlers.RotatingFileHandler(
         log_file_path,

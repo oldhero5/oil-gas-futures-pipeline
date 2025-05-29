@@ -24,6 +24,8 @@ dependencies = [
     "flower>=2.0.1",
     "uvicorn>=0.34.2",
     "yfinance>=0.2.61",
+    "bcrypt>=4.3.0",
+    "pyjwt>=2.9.0",
 ]
 
 [dependency-groups]

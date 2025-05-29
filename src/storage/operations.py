@@ -174,8 +174,7 @@ class DatabaseOperations:
                 close_price = EXCLUDED.close_price,
                 settlement_price = EXCLUDED.settlement_price,
                 volume = EXCLUDED.volume,
-                open_interest = EXCLUDED.open_interest,
-                updated_at = get_current_timestamp()
+                open_interest = EXCLUDED.open_interest
         """
 
         try:
